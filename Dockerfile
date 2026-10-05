@@ -1,7 +1,17 @@
 FROM node:20-alpine
 
-# Install ffmpeg for audio processing
-RUN apk add --no-cache ffmpeg
+# Install build dependencies for canvas + ffmpeg
+RUN apk add --no-cache \
+    ffmpeg \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    pango-dev \
+    jpeg-dev \
+    giflib-dev \
+    librsvg-dev \
+    pixman-dev
 
 WORKDIR /app
 
@@ -9,16 +19,13 @@ WORKDIR /app
 COPY package.json yarn.lock ./
 
 # Install dependencies
-RUN yarn install --frozen-lockfile --production=false
+RUN yarn install --frozen-lockfile
 
 # Copy source
 COPY . .
 
 # Build
 RUN yarn build
-
-# Prune dev dependencies
-RUN yarn install --frozen-lockfile --production=true
 
 EXPOSE 3000
 
