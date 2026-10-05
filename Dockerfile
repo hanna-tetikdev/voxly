@@ -24,8 +24,8 @@ RUN yarn install --frozen-lockfile
 # Copy source
 COPY . .
 
-# Build
-RUN yarn build
+# Build and verify
+RUN yarn build && ls -la dist/
 
 EXPOSE 3000
 
