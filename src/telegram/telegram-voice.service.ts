@@ -75,6 +75,8 @@ export class TelegramVoiceService {
 				await this.saveTranscription(chatId, userId, result.text, features, voice.duration)
 			}
 
+			await ctx.reply('🎨 Карточка для сторис: /card')
+
 			this.logger.log(`Processing complete: ${file.file_path}`)
 		} catch (error) {
 			clearInterval(interval)

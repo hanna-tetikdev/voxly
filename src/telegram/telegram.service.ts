@@ -1,16 +1,29 @@
-import { Injectable } from '@nestjs/common'
-import { Context } from 'grammy'
+import { Injectable, OnModuleInit } from '@nestjs/common'
+import { InjectBot } from '@grammyjs/nestjs'
+import { Bot, Context } from 'grammy'
 import { TelegramVoiceService } from './telegram-voice.service'
 import { TelegramTasksService } from './telegram-tasks.service'
 import { TelegramCommandsService } from './telegram-commands.service'
 
 @Injectable()
-export class TelegramService {
+export class TelegramService implements OnModuleInit {
 	constructor(
+		@InjectBot() private readonly bot: Bot,
 		private readonly voiceService: TelegramVoiceService,
 		private readonly tasksService: TelegramTasksService,
 		private readonly commandsService: TelegramCommandsService,
 	) {}
+
+	async onModuleInit(): Promise<void> {
+		await this.bot.api.setMyCommands([
+			{ command: 'card', description: 'Карточка для сторис' },
+			{ command: 'tasks', description: 'Активные задачи' },
+			{ command: 'alltasks', description: 'Все задачи' },
+			{ command: 'search', description: 'Поиск по голосовым' },
+			{ command: 'stats', description: 'Статистика' },
+			{ command: 'recent', description: 'Последние голосовые' },
+		])
+	}
 
 	async handleStart(ctx: Context): Promise<void> {
 		await ctx.reply(
