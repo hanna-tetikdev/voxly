@@ -6,17 +6,9 @@ import { TranscriptionService } from '../services/transcription.service'
 import { TaskService } from '../services/task.service'
 import * as fs from 'fs'
 
-export interface LastTranscriptionData {
-	summary: string
-	duration: number
-	date: Date
-}
-
 @Injectable()
 export class TelegramVoiceService {
 	private readonly logger = new Logger(TelegramVoiceService.name)
-
-	private lastTranscription: Map<number, LastTranscriptionData> = new Map()
 
 	constructor(
 		private readonly speechService: SpeechService,
@@ -24,10 +16,6 @@ export class TelegramVoiceService {
 		private readonly transcriptionService: TranscriptionService,
 		private readonly taskService: TaskService,
 	) {}
-
-	getLastTranscription(userId: number): LastTranscriptionData | undefined {
-		return this.lastTranscription.get(userId)
-	}
 
 	async handleVoice(ctx: Context): Promise<void> {
 		const voice = ctx.msg?.voice
@@ -153,12 +141,6 @@ export class TelegramVoiceService {
 			summary: features.summary,
 			tasks: features.tasks,
 			duration,
-		})
-
-		this.lastTranscription.set(userId, {
-			summary: features.summary,
-			duration,
-			date: new Date(),
 		})
 	}
 

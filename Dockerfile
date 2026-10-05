@@ -11,7 +11,10 @@ RUN apk add --no-cache \
     jpeg-dev \
     giflib-dev \
     librsvg-dev \
-    pixman-dev
+    pixman-dev \
+    fontconfig \
+    font-dejavu \
+    && fc-cache -f
 
 WORKDIR /app
 

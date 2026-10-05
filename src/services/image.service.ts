@@ -14,6 +14,8 @@ export interface CardData {
 @Injectable()
 export class ImageService {
 	private readonly logger = new Logger(ImageService.name)
+	// DejaVu ships in the Alpine image and covers Cyrillic. Arial does not exist there.
+	private readonly fontFamily = '"DejaVu Sans", sans-serif'
 
 	generateCard(data: CardData): string {
 		const width = 1080
@@ -46,27 +48,25 @@ export class ImageService {
 		const radius = 30
 
 		ctx.fillStyle = '#ffffff'
-		ctx.beginPath()
-		ctx.roundRect(cardX, cardY, cardWidth, cardHeight, radius)
-		ctx.fill()
-
 		ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'
 		ctx.shadowBlur = 40
 		ctx.shadowOffsetY = 20
-
-		ctx.fillStyle = '#667eea'
-		ctx.font = 'bold 80px Arial'
-		ctx.textAlign = 'center'
-		ctx.fillText('🎙️', width / 2, cardY + 100)
-
+		ctx.beginPath()
+		ctx.roundRect(cardX, cardY, cardWidth, cardHeight, radius)
+		ctx.fill()
 		ctx.shadowBlur = 0
 		ctx.shadowOffsetY = 0
+
+		this.drawMark(ctx, width / 2, cardY + 70)
+
 		ctx.fillStyle = '#1a1a2e'
-		ctx.font = 'bold 42px Arial'
+		ctx.font = `bold 42px ${this.fontFamily}`
 		ctx.textAlign = 'center'
+		ctx.textBaseline = 'alphabetic'
 		ctx.fillText('Голосовая заметка', width / 2, cardY + 170)
 
-		const dateStr = data.date.toLocaleDateString('ru-RU', {
+		const date = data.date instanceof Date ? data.date : new Date(data.date)
+		const dateStr = date.toLocaleDateString('ru-RU', {
 			day: 'numeric',
 			month: 'long',
 			year: 'numeric',
@@ -74,7 +74,7 @@ export class ImageService {
 		const durationStr = this.formatDuration(data.duration)
 
 		ctx.fillStyle = '#666666'
-		ctx.font = '28px Arial'
+		ctx.font = `28px ${this.fontFamily}`
 		ctx.fillText(`${dateStr} • ${durationStr}`, width / 2, cardY + 220)
 
 		ctx.strokeStyle = '#eeeeee'
@@ -85,9 +85,9 @@ export class ImageService {
 		ctx.stroke()
 
 		ctx.fillStyle = '#333333'
-		ctx.font = '32px Arial'
+		ctx.font = `32px ${this.fontFamily}`
 		ctx.textAlign = 'left'
-		const lines = this.wrapText(ctx, data.summary, cardWidth - 120)
+		const lines = this.wrapText(ctx, data.summary || '', cardWidth - 120)
 		let y = cardY + 320
 		for (const line of lines.slice(0, 12)) {
 			ctx.fillText(line, cardX + 60, y)
@@ -95,12 +95,12 @@ export class ImageService {
 		}
 
 		ctx.fillStyle = '#ffffff'
-		ctx.font = 'bold 36px Arial'
+		ctx.font = `bold 36px ${this.fontFamily}`
 		ctx.textAlign = 'center'
 		ctx.fillText('voxly', width / 2, height - 80)
 
 		ctx.fillStyle = 'rgba(255,255,255,0.7)'
-		ctx.font = '24px Arial'
+		ctx.font = `24px ${this.fontFamily}`
 		ctx.fillText('голос → текст → смысл', width / 2, height - 40)
 
 		const tempPath = path.join(os.tmpdir(), `voxly-card-${Date.now()}.png`)
@@ -109,6 +109,20 @@ export class ImageService {
 
 		this.logger.log(`Generated card: ${tempPath}`)
 		return tempPath
+	}
+
+	private drawMark(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+		ctx.save()
+		ctx.fillStyle = '#667eea'
+		ctx.beginPath()
+		ctx.arc(cx, cy, 36, 0, Math.PI * 2)
+		ctx.fill()
+		ctx.fillStyle = '#ffffff'
+		ctx.font = `bold 40px ${this.fontFamily}`
+		ctx.textAlign = 'center'
+		ctx.textBaseline = 'middle'
+		ctx.fillText('V', cx, cy + 2)
+		ctx.restore()
 	}
 
 	private wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {

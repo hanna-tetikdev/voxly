@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Context, InputFile } from 'grammy'
 import { TranscriptionService } from '../services/transcription.service'
 import { ImageService } from '../services/image.service'
-import { TelegramVoiceService } from './telegram-voice.service'
 import * as fs from 'fs'
 
 @Injectable()
@@ -12,7 +11,6 @@ export class TelegramCommandsService {
 	constructor(
 		private readonly transcriptionService: TranscriptionService,
 		private readonly imageService: ImageService,
-		private readonly voiceService: TelegramVoiceService,
 	) {}
 
 	async handleSearch(ctx: Context): Promise<void> {
@@ -95,8 +93,8 @@ export class TelegramCommandsService {
 		const userId = ctx.from?.id
 		if (!userId) return
 
-		const data = this.voiceService.getLastTranscription(userId)
-		if (!data) {
+		const [latest] = await this.transcriptionService.getRecent(userId, 1)
+		if (!latest) {
 			await ctx.reply('🤷 Сначала отправь голосовое сообщение')
 			return
 		}
@@ -104,16 +102,21 @@ export class TelegramCommandsService {
 		await ctx.reply('🎨 Генерирую карточку...')
 
 		try {
-			const cardPath = this.imageService.generateCard(data)
+			const cardPath = this.imageService.generateCard({
+				summary: latest.summary || latest.text,
+				duration: latest.duration,
+				date: new Date(latest.createdAt),
+			})
 
-			await ctx.replyWithPhoto(new InputFile(fs.createReadStream(cardPath)), {
+			await ctx.replyWithPhoto(new InputFile(fs.createReadStream(cardPath), 'voxly-card.png'), {
 				caption: '✨ Твоя карточка готова! Сохрани и делись в сторис 📱',
 			})
 
 			this.imageService.cleanup(cardPath)
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
 			this.logger.error('Card generation failed:', error)
-			await ctx.reply('❌ Не удалось создать карточку')
+			await ctx.reply(`❌ Не удалось создать карточку\n${message}`)
 		}
 	}
 }
