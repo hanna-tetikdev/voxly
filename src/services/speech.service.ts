@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import OpenAI from 'openai'
+import OpenAI, { toFile } from 'openai'
+import { AudioService } from './audio.service'
 import { CalendarEvent, CalendarService } from './calendar.service'
 
 export interface TranscriptionSegment {
@@ -38,6 +39,7 @@ export class SpeechService {
 	constructor(
 		private readonly configService: ConfigService,
 		private readonly calendarService: CalendarService,
+		private readonly audioService: AudioService,
 	) {
 		this.botToken = this.configService.getOrThrow<string>('TELEGRAM_BOT_TOKEN')
 		this.openai = new OpenAI({
@@ -47,10 +49,13 @@ export class SpeechService {
 		})
 	}
 
-	async transcribeVoice(filePath: string): Promise<TranscriptionResult> {
+	async transcribeVoice(
+		filePath: string,
+		upload: { fileName: string; mimeType: string } = { fileName: 'voice.ogg', mimeType: 'audio/ogg' },
+	): Promise<TranscriptionResult> {
 		const fileUrl = `https://api.telegram.org/file/bot${this.botToken}/${filePath}`
 
-		this.logger.log(`Downloading voice file: ${fileUrl}`)
+		this.logger.log(`Downloading voice file: ${filePath}`)
 		const response = await fetch(fileUrl)
 
 		if (!response.ok) {
@@ -60,7 +65,18 @@ export class SpeechService {
 		const arrayBuffer = await response.arrayBuffer()
 		this.logger.log(`Downloaded ${arrayBuffer.byteLength} bytes`)
 
-		const file = new File([arrayBuffer], 'voice.ogg', { type: 'audio/ogg' })
+		const extension = upload.fileName.split('.').pop()?.toLowerCase() ?? 'ogg'
+		let whisperBytes: Buffer = Buffer.from(arrayBuffer)
+		let whisperName = upload.fileName
+		let whisperType = upload.mimeType
+		if (extension !== 'ogg' && extension !== 'oga') {
+			this.logger.log(`Transcoding ${extension} to ogg before Whisper`)
+			whisperBytes = await this.audioService.transcodeToOgg(arrayBuffer, extension)
+			whisperName = 'audio.ogg'
+			whisperType = 'audio/ogg'
+		}
+
+		const file = await toFile(whisperBytes, whisperName, { type: whisperType })
 
 		this.logger.log('Sending to Whisper for transcription...')
 		try {

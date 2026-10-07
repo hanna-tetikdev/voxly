@@ -18,6 +18,16 @@ export class TelegramUpdate {
 		return this.telegramService.handleVoice(ctx)
 	}
 
+	@On('message:audio')
+	onAudioMessage(ctx: Context): Promise<void> {
+		return this.telegramService.handleM4a(ctx)
+	}
+
+	@On('message:document')
+	onDocumentMessage(ctx: Context): Promise<void> {
+		return this.telegramService.handleM4a(ctx)
+	}
+
 	@Command('search')
 	onSearch(ctx: Context): Promise<void> {
 		return this.telegramService.handleSearch(ctx)

@@ -21,10 +21,39 @@ export class TelegramVoiceService {
 
 	async handleVoice(ctx: Context): Promise<void> {
 		const voice = ctx.msg?.voice
-		if (!voice) {
+		if (!voice) return
+
+		await this.processAudio(ctx, {
+			duration: voice.duration,
+			fileName: 'voice.ogg',
+			mimeType: voice.mime_type ?? 'audio/ogg',
+		})
+	}
+
+	async handleM4a(ctx: Context): Promise<void> {
+		const audio = ctx.msg?.audio
+		const document = ctx.msg?.document
+		const fileName = audio?.file_name ?? document?.file_name
+		const mimeType = audio?.mime_type ?? document?.mime_type
+		if (!isM4a(fileName, mimeType)) return
+
+		const fileSize = audio?.file_size ?? document?.file_size
+		if (fileSize && fileSize > 20 * 1024 * 1024) {
+			await ctx.reply('Файл больше 20 МБ — Telegram не даёт боту его скачать.')
 			return
 		}
 
+		await this.processAudio(ctx, {
+			duration: audio?.duration ?? 0,
+			fileName: 'audio.m4a',
+			mimeType: mimeType ?? 'audio/mp4',
+		})
+	}
+
+	private async processAudio(
+		ctx: Context,
+		source: { duration: number; fileName: string; mimeType: string },
+	): Promise<void> {
 		const chatId = ctx.chat?.id
 		const userId = ctx.from?.id
 
@@ -34,7 +63,8 @@ export class TelegramVoiceService {
 
 		try {
 			const file = await ctx.getFile()
-			await ctx.reply(`⏱ Длина: ${voice.duration} сек. Обрабатываю...`)
+			const header = source.duration > 0 ? `Длина: ${source.duration} сек` : source.fileName
+			await ctx.reply(`⏱ ${header}. Обрабатываю...`)
 
 			const progressMessage = await ctx.reply(this.renderProgress(percent))
 			progressMessageId = progressMessage.message_id
@@ -44,9 +74,12 @@ export class TelegramVoiceService {
 					percent += 5
 					void ctx.api.editMessageText(ctx.chat.id, progressMessageId, this.renderProgress(percent))
 				}
-			}, voice.duration > 300 ? 3000 : 2000)
+			}, source.duration > 300 ? 3000 : 2000)
 
-			const result = await this.speechService.transcribeVoice(file.file_path!)
+			const result = await this.speechService.transcribeVoice(file.file_path!, {
+				fileName: source.fileName,
+				mimeType: source.mimeType,
+			})
 
 			await ctx.reply('🧠 Анализирую темы...')
 			const topicSegments = await this.speechService.splitByTopics(result.text, result.words)
@@ -65,7 +98,8 @@ export class TelegramVoiceService {
 			await ctx.reply(`📝 Транскрипция (${topicSegments.length} тем):\n\n${textWithTimestamps}`)
 
 			if (topicSegments.length > 1) {
-				await this.sendAudioSegments(ctx, result.audioBuffer, topicSegments)
+				const extension = (source.fileName.split('.').pop() ?? 'ogg').toLowerCase()
+				await this.sendAudioSegments(ctx, result.audioBuffer, topicSegments, extension)
 			}
 
 			await ctx.reply('🔮 Анализирую...')
@@ -75,7 +109,7 @@ export class TelegramVoiceService {
 			await this.calendarMessages.sendEvents(ctx, features.events)
 
 			if (chatId && userId) {
-				await this.saveTranscription(chatId, userId, result.text, features, voice.duration)
+				await this.saveTranscription(chatId, userId, result.text, features, source.duration || result.duration)
 			}
 
 			await ctx.reply('🎨 Карточка для сторис: /card')
@@ -85,19 +119,20 @@ export class TelegramVoiceService {
 			clearInterval(interval)
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 			console.error('Ошибка при обработке голосового:', errorMessage)
-			await ctx.reply('❌ Ошибка при обработке голосового сообщения')
+			await ctx.reply('❌ Ошибка при обработке аудио')
 		}
 
-		this.logger.log(`voice: ${voice.duration}, progressMessageId: ${progressMessageId}`)
+		this.logger.log(`audio: ${source.duration}, progressMessageId: ${progressMessageId}`)
 	}
 
 	private async sendAudioSegments(
 		ctx: Context,
 		audioBuffer: ArrayBuffer,
 		topicSegments: { start: number; end: number; text: string }[],
+		extension: string,
 	): Promise<void> {
 		await ctx.reply('✂️ Нарезаю на части...')
-		const audioSegments = await this.audioService.splitAudio(audioBuffer, topicSegments)
+		const audioSegments = await this.audioService.splitAudio(audioBuffer, topicSegments, extension)
 
 		for (const seg of audioSegments) {
 			const timestamp = this.speechService.formatTime(seg.start)
@@ -159,4 +194,11 @@ export class TelegramVoiceService {
 
 		return `${filled}${empty} ${percent}%`
 	}
+}
+
+const M4A_MIME = new Set(['audio/mp4', 'audio/m4a', 'audio/x-m4a'])
+
+function isM4a(fileName?: string, mimeType?: string): boolean {
+	if (fileName?.toLowerCase().endsWith('.m4a')) return true
+	return mimeType ? M4A_MIME.has(mimeType.toLowerCase()) : false
 }

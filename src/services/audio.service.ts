@@ -21,9 +21,11 @@ export class AudioService {
 	async splitAudio(
 		inputBuffer: ArrayBuffer,
 		segments: Array<{ start: number; end: number; text: string }>,
+		extension = 'ogg',
 	): Promise<AudioSegment[]> {
 		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'voxly-'))
-		const inputPath = path.join(tempDir, 'input.ogg')
+		const safeExtension = /^[a-z0-9]+$/.test(extension) ? extension : 'ogg'
+		const inputPath = path.join(tempDir, `input.${safeExtension}`)
 
 		fs.writeFileSync(inputPath, Buffer.from(inputBuffer))
 
@@ -66,6 +68,32 @@ export class AudioService {
 				.on('error', (err) => reject(err))
 				.run()
 		})
+	}
+
+	async transcodeToOgg(inputBuffer: ArrayBuffer, extension: string): Promise<Buffer> {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'voxly-'))
+		const safeExtension = /^[a-z0-9]+$/.test(extension) ? extension : 'bin'
+		const inputPath = path.join(tempDir, `input.${safeExtension}`)
+		const outputPath = path.join(tempDir, 'audio.ogg')
+		fs.writeFileSync(inputPath, Buffer.from(inputBuffer))
+
+		try {
+			await new Promise<void>((resolve, reject) => {
+				ffmpeg(inputPath)
+					.noVideo()
+					.audioCodec('libopus')
+					.audioFrequency(16000)
+					.audioChannels(1)
+					.format('ogg')
+					.output(outputPath)
+					.on('end', () => resolve())
+					.on('error', (error: Error) => reject(error))
+					.run()
+			})
+			return fs.readFileSync(outputPath)
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true })
+		}
 	}
 
 	cleanupSegments(segments: AudioSegment[]): void {

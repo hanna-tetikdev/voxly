@@ -31,7 +31,7 @@ export class TelegramService implements OnModuleInit {
 		await ctx.reply(
 			`🫡 Готов слушать даже 40 минут твоих мыслей!
 
-📤 Присылай голосовое — сделаю:
+📤 Присылай голосовое или файл .m4a — сделаю:
 • Транскрипцию с тайм-кодами
 • Нарезку по темам
 • Резюме и перевод
@@ -53,6 +53,10 @@ export class TelegramService implements OnModuleInit {
 	// Voice
 	handleVoice(ctx: Context): Promise<void> {
 		return this.voiceService.handleVoice(ctx)
+	}
+
+	handleM4a(ctx: Context): Promise<void> {
+		return this.voiceService.handleM4a(ctx)
 	}
 
 	// Tasks
