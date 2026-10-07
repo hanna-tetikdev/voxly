@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import OpenAI from 'openai'
+import { CalendarEvent, CalendarService } from './calendar.service'
 
 export interface TranscriptionSegment {
 	start: number
@@ -22,13 +23,22 @@ export interface TranscriptionResult {
 	duration: number
 }
 
+export interface VoiceFeatures {
+	summary: string
+	tasks: string[]
+	events: CalendarEvent[]
+}
+
 @Injectable()
 export class SpeechService {
 	private readonly logger = new Logger(SpeechService.name)
 	private readonly openai: OpenAI
 	private readonly botToken: string
 
-	constructor(private readonly configService: ConfigService) {
+	constructor(
+		private readonly configService: ConfigService,
+		private readonly calendarService: CalendarService,
+	) {
 		this.botToken = this.configService.getOrThrow<string>('TELEGRAM_BOT_TOKEN')
 		this.openai = new OpenAI({
 			apiKey: this.configService.getOrThrow<string>('OPENAI_API_KEY'),
@@ -242,15 +252,55 @@ ${words.map((w, i) => `${i}: ${w.word}`).join(', ')}
 		}
 	}
 
-	async processAllFeatures(text: string): Promise<{
-		summary: string
-		tasks: string[]
-	}> {
-		const [summary, tasks] = await Promise.all([
+	async extractEvents(text: string): Promise<CalendarEvent[]> {
+		this.logger.log('Extracting calendar events...')
+		try {
+			const response = await this.openai.chat.completions.create({
+				model: 'gpt-4o-mini',
+				messages: [
+					{
+						role: 'user',
+						content: `Сейчас: ${this.calendarService.nowLabel()}. Часовой пояс: ${this.calendarService.timeZone}.
+
+Найди события, которые нужно положить в календарь: встреча, созвон, запись, дедлайн, день рождения, вылет, приём. Нужна конкретная дата или время.
+Не включай обычные задачи без привязки к дню («купить молоко», «надо позвонить»).
+
+Текст: "${text}"
+
+Ответь JSON:
+{"events":[{"title":"коротко","startDate":"YYYY-MM-DD","startTime":"HH:mm или null","endDate":"YYYY-MM-DD или null","endTime":"HH:mm или null"}]}
+
+Правила:
+- Относительные даты («завтра», «в пятницу», «10 октября») переведи в абсолютные от сегодняшней даты.
+- Год не назван — ближайшая такая дата, не в прошлом. Если день в этом месяце уже прошёл — следующий месяц или год.
+- Дата не названа, но есть время — сегодня.
+- startTime = null, если время суток не сказано (событие на весь день).
+- endDate — последний день включительно. Для одного дня оставь null.
+- endTime = null, если конец не сказан.
+- «в 3» без «утра/ночи» для встречи — 15:00. «утром» — утро, «вечером» — плюс 12 к часу, если час < 12.
+- Максимум 5 событий. Если событий нет — {"events":[]}.`,
+					},
+				],
+				response_format: { type: 'json_object' },
+				temperature: 0.1,
+			})
+
+			const content = response.choices[0]?.message?.content ?? '{}'
+			return this.calendarService.normalize(JSON.parse(content))
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Unknown error'
+			this.logger.error(`Calendar extract failed: ${message}`)
+			return []
+		}
+	}
+
+	async processAllFeatures(text: string): Promise<VoiceFeatures> {
+		const [summary, tasks, events] = await Promise.all([
 			this.generateSummary(text),
 			this.extractTasks(text),
+			this.extractEvents(text),
 		])
 
-		return { summary, tasks }
+		return { summary, tasks, events }
 	}
 }

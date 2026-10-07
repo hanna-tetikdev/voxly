@@ -4,6 +4,7 @@ import { SpeechService } from '../services/speech.service'
 import { AudioService } from '../services/audio.service'
 import { TranscriptionService } from '../services/transcription.service'
 import { TaskService } from '../services/task.service'
+import { TelegramCalendarService } from './telegram-calendar.service'
 import * as fs from 'fs'
 
 @Injectable()
@@ -15,6 +16,7 @@ export class TelegramVoiceService {
 		private readonly audioService: AudioService,
 		private readonly transcriptionService: TranscriptionService,
 		private readonly taskService: TaskService,
+		private readonly calendarMessages: TelegramCalendarService,
 	) {}
 
 	async handleVoice(ctx: Context): Promise<void> {
@@ -70,6 +72,7 @@ export class TelegramVoiceService {
 			const features = await this.speechService.processAllFeatures(result.text)
 
 			await this.sendFeatures(ctx, features, userId)
+			await this.calendarMessages.sendEvents(ctx, features.events)
 
 			if (chatId && userId) {
 				await this.saveTranscription(chatId, userId, result.text, features, voice.duration)

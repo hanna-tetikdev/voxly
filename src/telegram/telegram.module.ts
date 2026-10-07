@@ -7,6 +7,8 @@ import { TelegramService } from './telegram.service'
 import { TelegramVoiceService } from './telegram-voice.service'
 import { TelegramTasksService } from './telegram-tasks.service'
 import { TelegramCommandsService } from './telegram-commands.service'
+import { TelegramCalendarService } from './telegram-calendar.service'
+import { CalendarService } from '../services/calendar.service'
 import { SpeechService } from '../services/speech.service'
 import { AudioService } from '../services/audio.service'
 import { TranscriptionService } from '../services/transcription.service'
@@ -33,6 +35,8 @@ import { Task } from '../entities/task.entity'
 		TelegramVoiceService,
 		TelegramTasksService,
 		TelegramCommandsService,
+		TelegramCalendarService,
+		CalendarService,
 		SpeechService,
 		AudioService,
 		TranscriptionService,

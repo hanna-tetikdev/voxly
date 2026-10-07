@@ -4,6 +4,7 @@ import { Bot, Context } from 'grammy'
 import { TelegramVoiceService } from './telegram-voice.service'
 import { TelegramTasksService } from './telegram-tasks.service'
 import { TelegramCommandsService } from './telegram-commands.service'
+import { TelegramCalendarService } from './telegram-calendar.service'
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
@@ -12,6 +13,7 @@ export class TelegramService implements OnModuleInit {
 		private readonly voiceService: TelegramVoiceService,
 		private readonly tasksService: TelegramTasksService,
 		private readonly commandsService: TelegramCommandsService,
+		private readonly calendarMessages: TelegramCalendarService,
 	) {}
 
 	async onModuleInit(): Promise<void> {
@@ -34,6 +36,9 @@ export class TelegramService implements OnModuleInit {
 • Нарезку по темам
 • Резюме и перевод
 • Список задач из "нужно", "надо"
+• Файл календаря, если в речи есть дата и событие
+
+📅 Или напиши текстом: «встреча завтра в 15:00» — пришлю файл, календарь предложит добавить.
 
 📋 Команды:
 /tasks — активные задачи ✅
@@ -82,5 +87,9 @@ export class TelegramService implements OnModuleInit {
 
 	handleCard(ctx: Context): Promise<void> {
 		return this.commandsService.handleCard(ctx)
+	}
+
+	handleText(ctx: Context): Promise<void> {
+		return this.calendarMessages.handleText(ctx)
 	}
 }

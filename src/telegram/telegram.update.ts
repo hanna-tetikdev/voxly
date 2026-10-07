@@ -53,6 +53,11 @@ export class TelegramUpdate {
 		return this.telegramService.handleClearTasks(ctx)
 	}
 
+	@On('message:text')
+	onText(ctx: Context): Promise<void> {
+		return this.telegramService.handleText(ctx)
+	}
+
 	@On('callback_query:data')
 	onCallbackQuery(ctx: Context): Promise<void> {
 		const data = ctx.callbackQuery?.data
